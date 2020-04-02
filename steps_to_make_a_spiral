@@ -1,1 +1,11 @@
-1. select work object 
+1. select work object (work object 
+2. open extension (needs gui with inputs)
+3. Check if work object is near edge of work space
+4. Find center of work area
+5. draw path to center of work area (work path)
+6. Set stroke and fill of work path to zero and translucent
+7. User input:
+  a. number of rows
+  b. Number of columns
+  c. ammount of scale from work object to center/end of work path (amount to scale downward from 100% to 1%)
+  d. 
