@@ -1,5 +1,9 @@
-1. select work object (work object 
+1. select work object (work object) 
 2. open extension (needs gui with inputs)
+    1. Number of rows (pre-made button for all divisions of 360: 10, 12, 15, 18, 20, 24, 30, 36, 40, 45, 60, 72, 90, 120, 180)
+    2. Selection to make rotation of row itesm match division by 360 (yes/no)
+    3. Degrees of roation between items
+    3. Number of columns
 3. Check if work object is near edge of work space
 4. Find center of work area
 5. draw path to center of work area (work path)
