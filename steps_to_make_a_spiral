@@ -1,12 +1,12 @@
 1. select work object (work object) 
 2. open extension (needs gui with inputs)
     1. Number of rows (pre-made button for all divisions of 360: 10, 12, 15, 18, 20, 24, 30, 36, 40, 45, 60, 72, 90, 120, 180)
-        Limit number if items to 36
-    2. Selection to make rotation of row ites match division by 360 (yes/no) (i.e. 36 tiems at 10 degrees=360 degrees)
-    3. Degrees of roation between items
+        Limit number of items to 36
+    2. Selection to make rotation of row items match division by 360 (yes/no) (i.e. 36 items at 10 degrees=360 degrees)
+    3. Degrees of rotation between items
     3. Number of columns
     4. Number of rows
-    5. Option to make number of columns and rows step down by division of 360.(example: row 1: 36 items, 10 degrees of rotation, second row, 20 itmes, 18 degrees of seperation, etc)
+    5. Option to make number of columns and rows step down by division of 360.(example: row 1: 36 items, 10 degrees of rotation, second row, 20 items, 18 degrees of separation, etc.)
 3. Check if work object is near edge of work space
     In no: error message "work piece must be near edge of work area"
 4. Find center of work area
@@ -15,4 +15,5 @@
 7. Copy and paste each column for row 1
 8. Move down to row 2, take input and copy and paste item
 9 Repeat until rows=0
-10. Generate spiral finished (close gui) 
+10. Generate spiral finished (close gui)
+
