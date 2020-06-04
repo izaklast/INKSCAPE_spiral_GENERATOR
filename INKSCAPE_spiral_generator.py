@@ -1,292 +1,297 @@
-﻿#!/usr/bin/env python
-# coding: utf-8 
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+'''
+Example of extensions template for inkscape
+'''
 
-"""
-Copyright (C) 2018 Rich Pang, rpang.contact@gmail.com.
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
+import inkex       # Required
+import simplestyle # will be needed here for styles support
+import os          # here for alternative debug method only - so not usually required
+# many other useful ones in extensions folder. E.g. simplepath, cubicsuperpath, ...
 
-from __future__ import division
+from math import cos, sin, radians
 
-from copy import deepcopy
-import inkex, cubicsuperpath, pathmodifier, simplestyle, simplepath, simpletransform
-import numpy as np
-
-
-# rename common numpy operations
-abs = np.abs
-sin = np.sin
-cos = np.cos
-tan = np.tan
-exp = np.exp
-log = np.log
-log10 = np.log10
-
-pi = np.pi
-
-
-__version__ = '0.1'
+__version__ = '0.2'
 
 inkex.localize()
 
-def split(l, sizes):
-    """Split a list into sublists of specific sizes."""
-    if not sum(sizes) == len(l):
-        raise ValueError('sum(sizes) must equal len(l)')
+### Your helper functions go here
+def points_to_svgd(p, close=True):
+    """ convert list of points (x,y) pairs
+        into a closed SVG path list
+    """
+    f = p[0]
+    p = p[1:]
+    svgd = 'M%.4f,%.4f' % f
+    for x in p:
+        svgd += 'L%.4f,%.4f' % x
+    if close:
+        svgd += 'z'
+    return svgd
 
-    sub_lists = []
-    ctr = 0
-    for size in sizes:
-        sub_lists.append(l[ctr:ctr+size])
-        ctr += size
+def points_to_bbox(p):
+    """ from a list of points (x,y pairs)
+        - return the lower-left xy and upper-right xy
+    """
+    llx = urx = p[0][0]
+    lly = ury = p[0][1]
+    for x in p[1:]:
+        if   x[0] < llx: llx = x[0]
+        elif x[0] > urx: urx = x[0]
+        if   x[1] < lly: lly = x[1]
+        elif x[1] > ury: ury = x[1]
+    return (llx, lly, urx, ury)
 
-    return sub_lists
+def points_to_bbox_center(p):
+    """ from a list of points (x,y pairs)
+        - find midpoint of bounding box around all points
+        - return (x,y)
+    """
+    bbox = points_to_bbox(p)
+    return ((bbox[0]+bbox[2])/2.0, (bbox[1]+bbox[3])/2.0)
+
+def point_on_circle(radius, angle):
+    " return xy coord of the point at distance radius from origin at angle "
+    x = radius * cos(angle)
+    y = radius * sin(angle)
+    return (x, y)
+
+def draw_SVG_circle(parent, r, cx, cy, name, style):
+    " structre an SVG circle entity under parent "
+    circ_attribs = {'style': simplestyle.formatStyle(style),
+                    'cx': str(cx), 'cy': str(cy), 
+                    'r': str(r),
+                    inkex.addNS('label','inkscape'): name}
+    circle = inkex.etree.SubElement(parent, inkex.addNS('circle','svg'), circ_attribs )
 
 
-class Travel(inkex.Effect):
+
+### Your main function subclasses the inkex.Effect class
+
+class Myextension(inkex.Effect): # choose a better name
     
     def __init__(self):
+        " define how the options are mapped from the inx file "
+        inkex.Effect.__init__(self) # initialize the super class
         
-        # initialize parent class
-        inkex.Effect.__init__(self)
+        # Two ways to get debug info:
+        # OR just use inkex.debug(string) instead...
+        try:
+            self.tty = open("/dev/tty", 'w')
+        except:
+            self.tty = open(os.devnull, 'w')  # '/dev/null' for POSIX, 'nul' for Windows.
+            # print >>self.tty, "gears-dev " + __version__
+            
+        # Define your list of parameters defined in the .inx file
+        self.OptionParser.add_option("-t", "--param1",
+                                     action="store", type="int",
+                                     dest="param1", default=24,
+                                     help="command line help")
         
-        # get params entered by user
-        self.OptionParser.add_option(
-            '', '--x_scale', action='store', type='float', dest='x_scale', default=0, help='x scale')
-        self.OptionParser.add_option(
-            '', '--y_scale', action='store', type='float', dest='y_scale', default=0, help='y scale')
-        self.OptionParser.add_option(
-            '', '--t_start', action='store', type='float', dest='t_start', default=0, help='t start')
-        self.OptionParser.add_option(
-            '', '--t_end', action='store', type='float', dest='t_end', default=1, help='t_end')
-        self.OptionParser.add_option(
-            '', '--n_steps', action='store', type='int', dest='n_steps', default=10, help='num steps')
-        self.OptionParser.add_option(
-            '', '--fps', action='store', type='float', dest='fps', default=0, help='fps')
-        self.OptionParser.add_option(
-            '', '--dt', action='store', type='float', dest='dt', default=0, help='dt')
-        self.OptionParser.add_option(
-            '', '--x_eqn', action='store', type='string', dest='x_eqn', default='', help='x')
-        self.OptionParser.add_option(
-            '', '--y_eqn', action='store', type='string', dest='y_eqn', default='', help='y')
-        self.OptionParser.add_option(
-            '', '--x_size_eqn', action='store', type='string', dest='x_size_eqn', default='', help='x size')
-        self.OptionParser.add_option(
-            '', '--y_size_eqn', action='store', type='string', dest='y_size_eqn', default='', help='y size')
-        self.OptionParser.add_option(
-            '', '--theta_eqn', action='store', type='string', dest='theta_eqn', default='', help='theta')
-        self.OptionParser.add_option(
-            '', '--active-tab', action='store', type='string', dest='active_tab', default='options', help='active tab')
+        self.OptionParser.add_option("-d", "--param2",
+                                     action="store", type="float",
+                                     dest="param2", default=1.0,
+                                     help="command line help")
         
+        self.OptionParser.add_option("-s", "--param3",
+                                     action="store", type="string", 
+                                     dest="param3", default='choice1',
+                                     help="command line help")
+
+        self.OptionParser.add_option("-u", "--units",
+                                     action="store", type="string",
+                                     dest="units", default='mm',
+                                     help="Units this dialog is using")
+
+        self.OptionParser.add_option("", "--units2",
+                                     action="store", type="string",
+                                     dest="units2", default='mm',
+                                     help="command line help")
+        
+        self.OptionParser.add_option("-x", "--achoice",
+                                     action="store", type="inkbool", 
+                                     dest="achoice", default=False,
+                                     help="command line help")
+
+        self.OptionParser.add_option("", "--accuracy", # note no cli shortcut
+                                     action="store", type="int",
+                                     dest="accuracy", default=0,
+                                     help="command line help")
+        self.OptionParser.add_option('-f', '--strokeColour', action = 'store',
+                                     type = 'string', dest = 'strokeColour',
+                                     default = 896839168, # Blue (see below how to discover value to put here)
+                                     help = 'The line colour.')
+        # here so we can have tabs - but we do not use it directly - else error
+        self.OptionParser.add_option("", "--active-tab",
+                                     action="store", type="string",
+                                     dest="active_tab", default='title', # use a legitmate default
+                                     help="Active tab.")
+        
+    def getUnittouu(self, param):
+        " for 0.48 and 0.91 compatibility "
+        try:
+            return inkex.unittouu(param)
+        except AttributeError:
+            return self.unittouu(param)
+            
+    def getColorString(self, longColor, verbose=False):
+        """ Convert the long into a #RRGGBB color value
+            - verbose=true pops up value for us in defaults
+            conversion back is A + B*256^1 + G*256^2 + R*256^3
+        """
+        if verbose: inkex.debug("%s ="%(longColor))
+        longColor = long(longColor)
+        if longColor <0: longColor = long(longColor) & 0xFFFFFFFF
+        hexColor = hex(longColor)[2:-3]
+        hexColor = '#' + hexColor.rjust(6, '0').upper()
+        if verbose: inkex.debug("  %s for color default value"%(hexColor))
+        return hexColor
+    
+    def add_text(self, node, text, position, text_height=12):
+        """ Create and insert a single line of text into the svg under node.
+        """
+        line_style = {'font-size': '%dpx' % text_height, 'font-style':'normal', 'font-weight': 'normal',
+                     'fill': '#F6921E', 'font-family': 'Bitstream Vera Sans,sans-serif',
+                     'text-anchor': 'middle', 'text-align': 'center'}
+        line_attribs = {inkex.addNS('label','inkscape'): 'Annotation',
+                       'style': simplestyle.formatStyle(line_style),
+                       'x': str(position[0]),
+                       'y': str((position[1] + text_height) * 1.2)
+                       }
+        line = inkex.etree.SubElement(node, inkex.addNS('text','svg'), line_attribs)
+        line.text = text
+
+           
+    def calc_unit_factor(self):
+        """ return the scale factor for all dimension conversions.
+            - The document units are always irrelevant as
+              everything in inkscape is expected to be in 90dpi pixel units
+        """
+        # namedView = self.document.getroot().find(inkex.addNS('namedview', 'sodipodi'))
+        # doc_units = self.getUnittouu(str(1.0) + namedView.get(inkex.addNS('document-units', 'inkscape')))
+        unit_factor = self.getUnittouu(str(1.0) + self.options.units)
+        return unit_factor
+
+
+### -------------------------------------------------------------------
+### This is your main function and is called when the extension is run.
+    
     def effect(self):
-
-        # get user-entered params
-        x_scale = self.options.x_scale
-        y_scale = self.options.y_scale
+        """ Draw a multi-tiem spiral from user input parameters.
+            - Take user input and duplicate items in circular array. 
+            - Use inout calculations to find number of new items
+            -OR use auto symmetry to create spiral 
+        """
         
-        t_start = self.options.t_start
-        t_end = self.options.t_end
-        n_steps = self.options.n_steps
-        fps = self.options.fps
-        dt = self.options.dt
-        
-        x_eqn = self.options.x_eqn
-        y_eqn = self.options.y_eqn
-        
-        x_size_eqn = self.options.x_size_eqn
-        y_size_eqn = self.options.y_size_eqn
-        
-        theta_eqn = self.options.theta_eqn
+        # check for correct number of selected objects and return a translatable errormessage to the user
+        if len(self.options.ids) != 1:
+            inkex.errormsg(_("This extension requires two selected objects."))
+            exit()
+        # Convert color - which comes in as a long into a string like '#FFFFFF'
+        self.options.strokeCol1our = self.getColorString(self.options.strokeColour)
+        #
+        path_stroke = self.options.strokeColour  # take color from tab3
+        path_fill   = 'none'     # no fill - just a line
+        path_stroke_width  = 0.6 # can also be in form '0.6mm'
+        # gather incoming params and convert
+        param1 = self.options.param1
+        param2 = self.options.param2
+        param3 = self.options.param3
+        choice = self.options.achoice
+        units2 = self.options.units2
+        accuracy = self.options.accuracy # although a string in inx - option parser converts to int.
+        # calculate unit factor for units defined in dialog. 
+        unit_factor = self.calc_unit_factor()
+        # what page are we on
+        page_id = self.options.active_tab # sometimes wrong the very first time
 
-        # get doc root
-        svg = self.document.getroot()
-        doc_w = self.unittouu(svg.get('width'))
-        doc_h = self.unittouu(svg.get('height'))
-
-        # get selected items and validate
-        selected = pathmodifier.zSort(self.document.getroot(), self.selected.keys())
-
-        if not selected:
-            inkex.errormsg('Exactly two objects must be selected: a rect and a template. See "help" for details.')
-            return
-        elif len(selected) != 2:
-            inkex.errormsg('Exactly two objects must be selected: a rect and a template. See "help" for details.')
-            return
-
-        # rect
-        rect = self.selected[selected[0]]
-
-        if not rect.tag.endswith('rect'):
-            inkex.errormsg('Bottom object must be rect. See "help" for usage.')
-            return
-
-        # object
-        obj = self.selected[selected[1]]
-
-        if not (obj.tag.endswith('path') or obj.tag.endswith('g')):
-            inkex.errormsg('Template object must be path or group of paths. See "help" for usage.')
-            return
-        if obj.tag.endswith('g'):
-            children = obj.getchildren()
-            if not all([ch.tag.endswith('path') for ch in children]):
-                msg = 'All elements of group must be paths, but they are: '
-                msg += ', '.join(['{}'.format(ch) for ch in children])
-                inkex.errormsg(msg)
-                return
-            objs = children
-            is_group = True
-        else:
-            objs = [obj]
-            is_group = False
-
-        # get rect params
-        w = float(rect.get('width'))
-        h = float(rect.get('height'))
-
-        x_rect = float(rect.get('x'))
-        y_rect = float(rect.get('y'))
-
-        # lower left corner
-        x_0 = x_rect
-        y_0 = y_rect + h
-
-        # get object path(s)
-        obj_ps = [simplepath.parsePath(obj_.get('d')) for obj_ in objs]
-        n_segs = [len(obj_p_) for obj_p_ in obj_ps]
-        obj_p = sum(obj_ps, [])
-
-        # compute travel parameters
-        if not n_steps:
-            # compute dt
-            if dt == 0:
-                dt = 1./fps
-            ts = np.arange(t_start, t_end, dt)
-        else:
-            ts = np.linspace(t_start, t_end, n_steps)
-
-        # compute xs, ys, stretches, and rotations in arbitrary coordinates
-        xs = np.nan * np.zeros(len(ts))
-        ys = np.nan * np.zeros(len(ts))
-        x_sizes = np.nan * np.zeros(len(ts))
-        y_sizes = np.nan * np.zeros(len(ts))
-        thetas = np.nan * np.zeros(len(ts))
-        
-        for ctr, t in enumerate(ts):
-            xs[ctr] = eval(x_eqn)
-            ys[ctr] = eval(y_eqn)
-            x_sizes[ctr] = eval(x_size_eqn)
-            y_sizes[ctr] = eval(y_size_eqn)
-            thetas[ctr] = eval(theta_eqn) * pi / 180
-
-        # ensure no Infs
-        if np.any(np.isinf(xs)):
-            raise Exception('Inf detected in x(t), please remove.')
-            return
-        if np.any(np.isinf(ys)):
-            raise Exception('Inf detected in y(t), please remove.')
-            return
-        if np.any(np.isinf(x_sizes)):
-            raise Exception('Inf detected in x_size(t), please remove.')
-            return
-        if np.any(np.isinf(y_sizes)):
-            raise Exception('Inf detected in y_size(t), please remove.')
-            return
-        if np.any(np.isinf(thetas)):
-            raise Exception('Inf detected in theta(t), please remove.')
-            return
-
-        # convert to screen coordinates
-        xs *= (w/x_scale)
-        xs += x_0
-
-        ys *= (-h/y_scale)  # neg sign to invert y for inkscape screen
-        ys += y_0
-
-        # get obj center
-        b_box = simpletransform.refinedBBox(cubicsuperpath.CubicSuperPath(obj_p))
-        c_x = 0.5 * (b_box[0] + b_box[1])
-        c_y = 0.5 * (b_box[2] + b_box[3])
-
-        # get rotation anchor
-        if any([k.endswith('transform-center-x') for k in obj.keys()]):
-            k_r_x = [k for k in obj.keys() if k.endswith('transform-center-x')][0]
-            k_r_y = [k for k in obj.keys() if k.endswith('transform-center-y')][0]
-            r_x = c_x + float(obj.get(k_r_x))
-            r_y = c_y - float(obj.get(k_r_y))
-        else:
-            r_x, r_y = c_x, c_y
-
-        paths = []
-
-        # compute new paths
-        for x, y, x_size, y_size, theta in zip(xs, ys, x_sizes, y_sizes, thetas):
-
-            path = deepcopy(obj_p)
-
-            # move to origin
-            simplepath.translatePath(path, -x_0, -y_0)
-
-            # move rotation anchor accordingly
-            r_x_1 = r_x - x_0
-            r_y_1 = r_y - y_0
-
-            # scale
-            simplepath.scalePath(path, x_size, y_size)
-
-            # scale rotation anchor accordingly
-            r_x_2 = r_x_1 * x_size
-            r_y_2 = r_y_1 * y_size
-
-            # move to final location
-            simplepath.translatePath(path, x, y)
-
-            # move rotation anchor accordingly
-            r_x_3 = r_x_2 + x
-            r_y_3 = r_y_2 + y
-
-            # rotate
-            simplepath.rotatePath(path, -theta, cx=r_x_3, cy=r_y_3)
-
-            paths.append(path)
-
-        parent = self.current_layer
-        group = inkex.etree.SubElement(parent, inkex.addNS('g', 'svg'), {})
-
-        for path in paths:
-
-            if is_group:
-                group_ = inkex.etree.SubElement(group, inkex.addNS('g', 'svg'), {})
-                path_components = split(path, n_segs)
-
-                for path_component, child in zip(path_components, children):
-                    attribs = {
-                        k: child.get(k) for k in child.keys()
-                    }
-
-                    attribs['d'] = simplepath.formatPath(path_component)
-
-                    child_copy = inkex.etree.SubElement(group_, child.tag, attribs)
-
-            else:
-                attribs = {
-                    k: obj.get(k) for k in obj.keys()
-                }
-
-                attribs['d'] = simplepath.formatPath(path)
-
-                obj_copy = inkex.etree.SubElement(group, obj.tag, attribs)
+        # Do your thing - create some points or a path or whatever...
+        points = []
+        points.extend( [ (i*2,i*2) for i in range(0, param1) ])
+        points.append((param1, param1*2+5))
+        #inkex.debug(points)
+        path = points_to_svgd( points )
+        #inkex.debug(path)
+        bbox_center = points_to_bbox_center( points )
+        # example debug
+        # print >>self.tty, bbox_center
+        # or
+        # inkex.debug("bbox center %s" % bbox_center)
 
         
+        # Embed the path in a group to make animation easier:
+        # Be sure to examine the internal structure by looking in the xml editor inside inkscape
+        # This finds center of exisiting document page
+        
+        # This finds center of current view in inkscape
+        t = 'translate(%s,%s)' % (self.view_center[0], self.view_center[1] )
+        # Make a nice useful name
+        g_attribs = { inkex.addNS('label','inkscape'): 'useful name' + str( param1 ),
+                      inkex.addNS('transform-center-x','inkscape'): str(-bbox_center[0]),
+                      inkex.addNS('transform-center-y','inkscape'): str(-bbox_center[1]),
+                      'transform': t,
+                      'info':'N: '+str(param1)+'; with:'+ str(param2) }
+        # add the group to the document's current layer
+        topgroup = inkex.etree.SubElement(self.current_layer, 'g', g_attribs )
+
+        # Create SVG Path under this top level group
+        # define style using basic dictionary
+        style = { 'stroke': path_stroke, 'fill': path_fill, 'stroke-width': param2 }
+        # convert style into svg form (see import at top of file)
+        mypath_attribs = { 'style': simplestyle.formatStyle(style), 'd': path }
+        # add path to scene
+        squiggle = inkex.etree.SubElement(topgroup, inkex.addNS('path','svg'), mypath_attribs )
+
+
+        # Add another feature in same group (under it)
+        style = { 'stroke': path_stroke, 'fill': path_fill, 'stroke-width': path_stroke_width }
+        cs = param1 / 2 # centercross length
+        cs2 = str(cs)
+        d = 'M-'+cs2+',0L'+cs2+',0M0,-'+cs2+'L0,'+cs2  # 'M-10,0L10,0M0,-10L0,10'
+        # or
+        d = 'M %s,0 L %s,0 M 0,-%s L 0,%s' % (-cs, cs, cs,cs)
+        # or
+        d = 'M {0},0 L {1},0 M 0,{0} L 0,{1}'.format(-cs,cs)
+        # or
+        #d = 'M-10 0L10 0M0 -10L0 10' # commas superfluous, minimise spaces.
+        cross_attribs = { inkex.addNS('label','inkscape'): 'Center cross',
+                          'style': simplestyle.formatStyle(style), 'd': d }
+        cross = inkex.etree.SubElement(topgroup, inkex.addNS('path','svg'), cross_attribs )
+
+
+        # Add a precalculated svg circle
+        style = { 'stroke': path_stroke, 'fill': path_fill, 'stroke-width': self.getUnittouu(str(param2) +self.options.units) }
+        draw_SVG_circle(topgroup, param1*4*unit_factor, 0, 0, 'a circle', style)
+
+
+        # Add some super basic text (e.g. for debug)
+        if choice:
+            notes = ['a label: %d (%s) ' % (param1*unit_factor, self.options.units),
+                     'doc line'
+                     ]
+            text_height = 12
+            # position above
+            y = - 22
+            for note in notes:
+                self.add_text(topgroup, note, [0,y], text_height)
+                y += text_height * 1.2
+        #
+        #more complex text
+        font_height = min(32, max( 10, int(self.getUnittouu(str(param1) + self.options.units))))
+        text_style = { 'font-size': str(font_height),
+                       'font-family': 'arial',
+                       'text-anchor': 'middle',
+                       'text-align': 'center',
+                       'fill': path_stroke }
+        text_atts = {'style':simplestyle.formatStyle(text_style),
+                     'x': str(44),
+                     'y': str(-15) }
+        text = inkex.etree.SubElement(topgroup, 'text', text_atts)
+        text.text = "%4.3f" %(param1*param2)
+
 if __name__ == '__main__':
-    e = Travel()
+    e = Myextension()
     e.affect()
+
+# Notes
+© 2020 GitHub, Inc.
