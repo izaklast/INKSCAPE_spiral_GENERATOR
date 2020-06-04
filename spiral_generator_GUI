@@ -6,11 +6,10 @@
     <param name="Columns" type="float" precision="2" min="2" max="10" 
   gui-text="Number of columns">10</param>
   <param name="Rows" type="float" precision="2" min="4" max="36" 
-  gui-text="Number of Rows">36</param>
+  gui-text="Number of Rows">4</param>
    
-    <option value="Symmetrical">Make symmetrical both ways</option>
-      #yes or no radio button
-  </param>
+   #add option to make symmetrical later: <option value="Symmetrical">Make symmetrical both ways</option>
+     
   <param name="radio2" type="optiongroup" _gui-text="Select second option: ">
     <option value="string11">string1</option>
     <option value="string22">string2</option>
