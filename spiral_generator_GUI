@@ -2,11 +2,12 @@
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <_name>RadioButton example</_name>
   <id>org.inkscape.effect.radiobuttontest</id>
-  <param name="radio1" type="optiongroup" _gui-text="Number of copies: ">
-    <option value="Rows:">Rows</option>
-    #needs int input
-    <option value="Columns">columns/option>
-    #needs int input
+  <param name="setup" type="description" appearance="header"> "Setup spiral:" </_param>
+    <param name="Columns" type="float" precision="2" min="2" max="10" 
+  gui-text="Number of columns">10</param>
+  <param name="Rows" type="float" precision="2" min="4" max="36" 
+  gui-text="Number of Rows">36</param>
+   
     <option value="Symmetrical">Make symmetrical both ways</option>
       #yes or no radio button
   </param>
@@ -23,3 +24,6 @@
   </effect>
   ...
 </inkscape-extension>
+
+  <param name="name" type="float" precision="3" min="0" max="9999" 
+gui-text="Some label text">1.234</param>
