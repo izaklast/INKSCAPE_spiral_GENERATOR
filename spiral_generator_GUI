@@ -2,10 +2,13 @@
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <_name>RadioButton example</_name>
   <id>org.inkscape.effect.radiobuttontest</id>
-  <param name="radio1" type="optiongroup" _gui-text="Select option: ">
-    <option value="string1">translatable string 1</option>
-    <option value="string2">string 2</option>
-    <option value="string3">test 3!</option>
+  <param name="radio1" type="optiongroup" _gui-text="Number of copies: ">
+    <option value="Rows:">Rows</option>
+    #needs int input
+    <option value="Columns">columns/option>
+    #needs int input
+    <option value="Symetrical">Make symetrical both ways</option>
+      #yes or no radio button
   </param>
   <param name="radio2" type="optiongroup" _gui-text="Select second option: ">
     <option value="string11">string1</option>
