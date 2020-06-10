@@ -68,7 +68,7 @@ def draw_SVG_circle(parent, r, cx, cy, name, style):
 
 ### Your main function subclasses the inkex.Effect class
 
-class Myextension(inkex.Effect): # choose a better name
+class SpiralGenerator(inkex.Effect): # choose a better name
     
     def __init__(self):
         " define how the options are mapped from the inx file "
@@ -177,7 +177,7 @@ class Myextension(inkex.Effect): # choose a better name
 ### This is your main function and is called when the extension is run.
     
     def effect(self):
-        """ Draw a multi-tiem spiral from user input parameters.
+        """ Draw a multi-item spiral from user input parameters.
             - Take user input and duplicate items in circular array. 
             - Use inout calculations to find number of new items
             -OR use auto symmetry to create spiral 
